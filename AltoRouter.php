@@ -19,6 +19,14 @@ class AltoRouter
      */
     protected $routes = [];
 
+    protected $tree = [
+		'GET' => [],
+		'POST' => [],
+		'PUT' => [],
+		'DELETE' => [],
+		'PATCH' => [],
+	];
+
     /**
      * @var array Array of all named routes.
      */
@@ -111,16 +119,20 @@ class AltoRouter
     /**
      * Map a route to a target
      *
-     * @param string $method One of 5 HTTP Methods, or a pipe-separated list of multiple HTTP Methods (GET|POST|PATCH|PUT|DELETE)
+     * @param string|array $methods Accepted HTTP methods for this route. Accepts a single method as string or an array of methods.
      * @param string $route The route regex, custom regex must start with an @. You can use multiple pre-set regex filters, like [i:id]
      * @param mixed $target The target where this route should point to. Can be anything.
      * @param string $name Optional name of this route. Supply if you want to reverse route this url in your application.
      * @throws Exception
      */
-    public function map($method, $route, $target, $name = null)
+    public function map($methods, $route, $target, $name = null)
     {
+        $this->routes[] = [$methods, $route, $target, $name];
 
-        $this->routes[] = [$method, $route, $target, $name];
+        $methods = is_array($methods) ? $methods : [$methods];
+        foreach($methods as $method) {
+        	$this->tree[$method][$route] = $target;
+		}
 
         if ($name) {
             if (isset($this->namedRoutes[$name])) {
@@ -188,7 +200,6 @@ class AltoRouter
      */
     public function match($requestUrl = null, $requestMethod = null)
     {
-
         $params = [];
 
         // set Request Url if it isn't passed as parameter
@@ -209,16 +220,14 @@ class AltoRouter
             $requestMethod = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
         }
 
-        foreach ($this->routes as $handler) {
-            list($methods, $route, $target, $name) = $handler;
+        if (isset($this->tree[$requestMethod][$requestUrl])) {
+        	return [
+        		'target' => $this->tree[$requestMethod][$requestUrl],
+				'params' => []
+			];
+		}
 
-            $method_match = (stripos($methods, $requestMethod) !== false);
-
-            // Method did not match, continue to next route.
-            if (!$method_match) {
-                continue;
-            }
-
+        foreach ($this->tree[$requestMethod] as $route => $target) {
             if ($route === '*') {
                 // * wildcard (matches all)
                 $match = true;
@@ -227,8 +236,8 @@ class AltoRouter
                 $pattern = '`' . substr($route, 1) . '`u';
                 $match = preg_match($pattern, $requestUrl, $params) === 1;
             } elseif (($position = strpos($route, '[')) === false) {
-                // No params in url, do string comparison
-                $match = strcmp($requestUrl, $route) === 0;
+                // No params in url, can't be matched because we do a static check first
+                continue;
             } else {
                 // Compare longest non-param string with url
                 if (strncmp($requestUrl, $route, $position) !== 0) {
@@ -239,21 +248,14 @@ class AltoRouter
             }
 
             if ($match) {
-                if ($params) {
-                    foreach ($params as $key => $value) {
-                        if (is_numeric($key)) {
-                            unset($params[$key]);
-                        }
-                    }
-                }
-
                 return [
                     'target' => $target,
                     'params' => $params,
-                    'name' => $name
+                    //'name' => $name
                 ];
             }
         }
+
         return false;
     }
 
