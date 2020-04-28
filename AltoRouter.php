@@ -119,15 +119,35 @@ class AltoRouter
      */
     public function map($method, $route, $target, $name = null)
     {
+        $any = [ 'GET', 'POST', 'PATCH', 'PUT', 'DELETE' ];
 
-        $this->routes[] = [$method, $route, $target, $name];
+        $_method = explode( '|', strtoupper( $method ) );
+        $_method = array_intersect( $_method, array_merge( [ 'ANY' ], $any ) );
+        if ( ! $_method ) {
+            throw new RuntimeException( "Invalid method '{$method}'" );
+        }
+        // normalize ANY
+        if ( in_array( 'ANY', $_method ) ) {
+            $_method = [ 'ANY' ];
+            $method  = implode( '|', $any );
+        } elseif ( count( $_method ) >= 5 ) { // all acceptable methods are requested
+            $_method = [ 'ANY' ];
+            $method  = implode( '|', $any );
+        } else {
+            $method = implode( '|', $_method );
+        }
 
         if ($name) {
-            if (isset($this->namedRoutes[$name])) {
-                throw new RuntimeException("Can not redeclare route '{$name}'");
+            // register named routes for all the methods, use ANY in case of exactly all.
+            foreach ( $_method as $__method ) {
+                if ( isset( $this->namedRoutes["$__method:$name"] ) ) {
+                    throw new RuntimeException( "Can not redeclare route '{$name}' for method '{$__method}'" );
+                }
+                $this->namedRoutes["$__method:$name"] = $route;
             }
-            $this->namedRoutes[$name] = $route;
         }
+
+        $this->routes[] = [ $method, $route, $target ];
 
         return;
     }
@@ -138,20 +158,50 @@ class AltoRouter
      * Generate the URL for a named route. Replace regexes with supplied parameters
      *
      * @param string $routeName The name of the route.
-     * @param array @params Associative array of parameters to replace placeholders with.
+     * @param array $params Associative array of parameters to replace placeholders with.
+     * @param string|null $method must match method
+     *
      * @return string The URL of the route with named parameters in place.
      * @throws Exception
      */
-    public function generate($routeName, array $params = [])
+    public function generate($routeName, array $params = [], $method = null)
     {
-
-        // Check if named route exists
-        if (!isset($this->namedRoutes[$routeName])) {
-            throw new RuntimeException("Route '{$routeName}' does not exist.");
+        $method = $method ? strtoupper( $method ) : 'ANY';
+        $route  = false;
+        // allow generating by exact route or name
+        $allowed_names   = [];
+        $allowed_names[] = "$method:$routeName"; // specific request, specific route
+        $allowed_names[] = "ANY:$routeName"; // specific request, generic route
+        $any             = [ 'GET', 'POST', 'PATCH', 'PUT', 'DELETE' ];
+        foreach ( $any as $m ) {
+            $allowed_names[] = "$m:$routeName"; // generic request, specific route
         }
 
-        // Replace named parameters
-        $route = $this->namedRoutes[$routeName];
+        foreach ( $allowed_names as $allowed_name ) {
+            if ( isset( $this->namedRoutes[$allowed_name] ) ) {
+                $route = $this->namedRoutes[$allowed_name];
+                break;
+            }
+        }
+
+        // did not find a matching named route, try unnamed routes
+        if ( ! $route ) {
+            foreach ( $this->getRoutes() as $a_route ) {
+                if ( $routeName === $a_route[1] ) {
+                    if ( $method && 'ANY' !== $method && ! in_array( strtoupper( $method ), explode( '|', $a_route[0] ) ) ) {
+                        continue;
+                    }
+
+                    $route = $a_route[1];
+                    break;
+                }
+            }
+        }
+
+        // Check if named route exists
+        if ( ! $route ) {
+            throw new RuntimeException( "Route '{$routeName}' does not exist." );
+        }
 
         // prepend base path to route url again
         $url = $this->basePath . $route;
@@ -176,8 +226,12 @@ class AltoRouter
                 }
             }
         }
-
-        return $url;
+        // clean multiple slashed at the end that are a result of optional parameters.
+        // do NOT replace ALL // with / as optional parameters IN THE MIDDLE of a route
+        // will then break that route. Of course, one should NEVER have optional parameters
+        // in the middle of a route, but some people are stupid.
+        // if a route has no trailing slash, don't force it. Want to force it? use     $url .'/'    as last parameter.
+        return preg_replace( '@/+$@', '/', $url );
     }
 
     /**
@@ -251,11 +305,7 @@ class AltoRouter
                     }
                 }
 
-                return [
-                    'target' => $target,
-                    'params' => $params,
-                    'name' => $name
-                ];
+                return compact( 'target', 'params', 'route', 'methods' );
             }
         }
 
