@@ -306,7 +306,8 @@ class AltoRouter
                     }
                 }
 
-                return compact( 'target', 'params', 'route', 'methods', 'name' );
+                return
+	                compact( 'target', 'params', 'route', 'methods', 'name' );
             }
         }
 
