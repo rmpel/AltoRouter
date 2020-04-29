@@ -148,7 +148,7 @@ class AltoRouter
             }
         }
 
-        $this->routes[] = [ $method, $route, $target ];
+        $this->routes[] = [ $method, $route, $target, $name ];
 
         return;
     }
@@ -306,7 +306,7 @@ class AltoRouter
                     }
                 }
 
-                return compact( 'target', 'params', 'route', 'methods' );
+                return compact( 'target', 'params', 'route', 'methods', 'name' );
             }
         }
 
