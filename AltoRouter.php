@@ -13,6 +13,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 class AltoRouter
 {
+		const ALLOW_GENERATE_ANONYMOUS = false;
 
     /**
      * @var array Array of all routes (incl. named routes).
@@ -185,7 +186,7 @@ class AltoRouter
         }
 
         // did not find a matching named route, try unnamed routes
-        if ( ! $route ) {
+        if ( ! $route && self::ALLOW_GENERATE_ANONYMOUS) {
             foreach ( $this->getRoutes() as $a_route ) {
                 if ( $routeName === $a_route[1] ) {
                     if ( $method && 'ANY' !== $method && ! in_array( strtoupper( $method ), explode( '|', $a_route[0] ) ) ) {
