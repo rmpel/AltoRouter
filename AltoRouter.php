@@ -121,6 +121,7 @@ class AltoRouter
     public function map($method, $route, $target, $name = null)
     {
         $any = [ 'GET', 'POST', 'PATCH', 'PUT', 'DELETE' ];
+        $onroot = substr($route, 0, 1) === '/';
 
         $_method = explode( '|', strtoupper( $method ) );
         $_method = array_intersect( $_method, array_merge( [ 'ANY' ], $any ) );
@@ -148,7 +149,7 @@ class AltoRouter
             }
         }
 
-        $this->routes[] = [ $method, $route, $target, $name ];
+        $this->routes[] = [ $method, $route, $target, $name, $onroot ];
 
         return;
     }
@@ -206,6 +207,10 @@ class AltoRouter
 
         // prepend base path to route url again
         $url = $this->basePath . $route;
+        // this is special; if the route begins with /, ignore the basePath
+        if (substr($route, 0, 1) == '/') {
+	        $url = $route;
+        }
 
         if (preg_match_all('`(/|\.|)\[([^:\]]*+)(?::([^:\]]*+))?\](\?|)`', $route, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $index => $match) {
@@ -251,9 +256,6 @@ class AltoRouter
             $requestUrl = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/';
         }
 
-        // strip base path from request url
-        $requestUrl = substr($requestUrl, strlen($this->basePath));
-
         // Strip query string (?a=b) from Request Url
         if (($strpos = strpos($requestUrl, '?')) !== false) {
             $requestUrl = substr($requestUrl, 0, $strpos);
@@ -267,13 +269,20 @@ class AltoRouter
         }
 
         foreach ($this->routes as $handler) {
-            list($methods, $route, $target, $name) = $handler;
+            list($methods, $route, $target, $name, $onroot) = $handler;
 
             $method_match = (stripos($methods, $requestMethod) !== false);
 
             // Method did not match, continue to next route.
             if (!$method_match) {
                 continue;
+            }
+
+            if ($onroot) {
+                $verify_route = $route;
+            }
+            else {
+                $verify_route = $this->basePath . ltrim($route, '/');
             }
 
             if ($route === '*') {
@@ -285,11 +294,11 @@ class AltoRouter
                 $match = preg_match($pattern, $requestUrl, $params) === 1;
             } elseif (($position = strpos($route, '[')) === false) {
                 // No params in url, do string comparison
-                $match = strcmp($requestUrl, $route) === 0;
+                $match = strcmp($requestUrl, $verify_route) === 0;
             } else {
                 // Compare longest non-param string with url before moving on to regex
 				// Check if last character before param is a slash, because it could be optional if param is optional too (see https://github.com/dannyvankooten/AltoRouter/issues/241)
-                if (strncmp($requestUrl, $route, $position) !== 0 && ($lastRequestUrlChar === '/' || $route[$position-1] !== '/')) {
+                if (strncmp($requestUrl, $verify_route, $position) !== 0 && ($lastRequestUrlChar === '/' || $route[$position-1] !== '/')) {
                     continue;
                 }
 
