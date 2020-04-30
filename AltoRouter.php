@@ -302,7 +302,7 @@ class AltoRouter
                     continue;
                 }
 
-                $regex = $this->compileRoute($route);
+                $regex = $this->compileRoute($verify_route);
                 $match = preg_match($regex, $requestUrl, $params) === 1;
             }
 
