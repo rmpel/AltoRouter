@@ -39,7 +39,8 @@ class AltoRouter
         'h'  => '[0-9A-Fa-f]++',
         '*'  => '.+?',
         '**' => '.++',
-        ''   => '[^/\.]++'
+        ''   => '[^/\.]++',
+        '--allow-dots--' => '[^/]++'
     ];
 
     /**
@@ -329,13 +330,18 @@ class AltoRouter
      */
     protected function compileRoute($route)
     {
-        if (preg_match_all('`(/|\.|)\[([^:\]]*+)(?::([^:\]]*+))?\](\?|)`', $route, $matches, PREG_SET_ORDER)) {
+        if (preg_match_all('`(/|\.|)\[([^:\]]*+)(?::([^:\]]*+))?\]([?.]*)`', $route, $matches, PREG_SET_ORDER)) {
             $matchTypes = $this->matchTypes;
             foreach ($matches as $match) {
                 list($block, $pre, $type, $param, $optional) = $match;
+                $allow_dots = false !== strpos($optional,'.');
+                $optional = false !== strpos($optional,'?');
 
                 if (isset($matchTypes[$type])) {
                     $type = $matchTypes[$type];
+                    if ($allow_dots && $type === $matchTypes['']) {
+                        $type = $matchTypes['--allow-dots--'];
+                    }
                 }
                 if ($pre === '.') {
                     $pre = '\.';
