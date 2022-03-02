@@ -213,7 +213,7 @@ class AltoRouter
 	        $url = $route;
         }
 
-        if (preg_match_all('`(/|\.|)\[([^:\]]*+)(?::([^:\]]*+))?\](\?|)`', $route, $matches, PREG_SET_ORDER)) {
+        if (preg_match_all('`(/|\.|)\[([^:\]]*+)(?::([^:\]]*+))?\](\?|\.|)`', $route, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $index => $match) {
                 list($block, $pre, $type, $param, $optional) = $match;
 
